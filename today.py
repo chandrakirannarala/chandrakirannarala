@@ -10,8 +10,9 @@ import hashlib
 # Account permissions: read:Followers, read:Starring, read:Watching
 # Repository permissions: read:Commit statuses, read:Contents, read:Issues, read:Metadata, read:Pull Requests
 # Issues and pull requests permissions not needed at the moment, but may be used in the future
-HEADERS = {'authorization': 'token '+ os.environ['ACCESS_TOKEN']}
-USER_NAME = os.environ['USER_NAME'] # 'Andrew6rant'
+ACCESS_TOKEN = os.environ.get('ACCESS_TOKEN', '')
+HEADERS = {'authorization': 'token ' + ACCESS_TOKEN}
+USER_NAME = os.environ.get('USER_NAME', 'chandrakirannarala')
 QUERY_COUNT = {'user_getter': 0, 'follower_getter': 0, 'graph_repos_stars': 0, 'recursive_loc': 0, 'graph_commits': 0, 'loc_query': 0}
 
 
@@ -316,9 +317,27 @@ def stars_counter(data):
     return total_stars
 
 
+def read_profile_template(path='profile.txt'):
+    """
+    Read the profile text used to render the GitHub profile README.
+    """
+    with open(path, 'r', encoding='utf-8') as profile_file:
+        return profile_file.read()
+
+
+def update_readme(profile_text, filename='README.md'):
+    """
+    Write the provided profile text into the README as a Markdown-safe code block.
+    """
+    with open(filename, 'w', encoding='utf-8') as readme_file:
+        readme_file.write('```text\n')
+        readme_file.write(profile_text.rstrip())
+        readme_file.write('\n```\n')
+
+
 def svg_overwrite(filename, age_data, commit_data, star_data, repo_data, contrib_data, follower_data, loc_data):
     """
-    Parse SVG files and update elements with my age, commits, stars, repositories, and lines written
+    Backward-compatible SVG updater for repositories that still include SVG templates.
     """
     tree = etree.parse(filename)
     root = tree.getroot()
@@ -439,15 +458,15 @@ def formatter(query_type, difference, funct_return=False, whitespace=0):
 
 if __name__ == '__main__':
     """
-    Andrew Grant (Andrew6rant), 2022-2025
+    Chandra Kirannarala profile generator
     """
     print('Calculation times:')
     # define global variable for owner ID and calculate user's creation date
-    # e.g {'id': 'MDQ6VXNlcjU3MzMxMTM0'} and 2019-11-03T21:15:07Z for username 'Andrew6rant'
+    # e.g. {'id': '...'} and 2019-11-03T21:15:07Z for a GitHub username
     user_data, user_time = perf_counter(user_getter, USER_NAME)
     OWNER_ID, acc_date = user_data
     formatter('account data', user_time)
-    age_data, age_time = perf_counter(daily_readme, datetime.datetime(2002, 7, 5))
+    age_data, age_time = perf_counter(daily_readme, datetime.datetime(1999, 1, 1))
     formatter('age calculation', age_time)
     total_loc, loc_time = perf_counter(loc_query, ['OWNER', 'COLLABORATOR', 'ORGANIZATION_MEMBER'], 7)
     formatter('LOC (cached)', loc_time) if total_loc[-1] else formatter('LOC (no cache)', loc_time)
@@ -458,7 +477,7 @@ if __name__ == '__main__':
     follower_data, follower_time = perf_counter(follower_getter, USER_NAME)
 
     # several repositories that I've contributed to have since been deleted.
-    if OWNER_ID == {'id': 'MDQ6VXNlcjU3MzMxMTM0'}: # only calculate for user Andrew6rant
+    if OWNER_ID == {'id': 'MDQ6VXNlcjU3MzMxMTM0'}: # only calculate for the original archived data owner
         archived_data = add_archive()
         for index in range(len(total_loc)-1):
             total_loc[index] += archived_data[index]
@@ -467,8 +486,11 @@ if __name__ == '__main__':
 
     for index in range(len(total_loc)-1): total_loc[index] = '{:,}'.format(total_loc[index]) # format added, deleted, and total LOC
 
-    svg_overwrite('dark_mode.svg', age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1])
-    svg_overwrite('light_mode.svg', age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1])
+    update_readme(read_profile_template())
+
+    for svg_file in ('dark_mode.svg', 'light_mode.svg'):
+        if os.path.exists(svg_file):
+            svg_overwrite(svg_file, age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1])
 
     # move cursor to override 'Calculation times:' with 'Total function time:' and the total function time, then move cursor back
     print('\033[F\033[F\033[F\033[F\033[F\033[F\033[F\033[F',
